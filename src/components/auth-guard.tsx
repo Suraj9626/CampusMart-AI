@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
@@ -16,7 +16,7 @@ const PUBLIC_ROUTES = [
   "/help"
 ];
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+function AuthGuardInner({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -68,4 +68,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+export function AuthGuard({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[75vh] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-9 h-9 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
+            Verifying Student Access...
+          </p>
+        </div>
+      </div>
+    }>
+      <AuthGuardInner>{children}</AuthGuardInner>
+    </Suspense>
+  );
 }
