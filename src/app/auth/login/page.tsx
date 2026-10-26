@@ -96,7 +96,7 @@ function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-              College Email or Gmail
+              College Email (@sjcem.edu.in)
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
@@ -104,7 +104,7 @@ function LoginForm() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourname@gmail.com or student@college.edu"
+                placeholder="125suraj6041@sjcem.edu.in"
                 className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:border-indigo-500"
                 required
               />
@@ -114,7 +114,7 @@ function LoginForm() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                Password
+                Password (4-Digit PIN)
               </label>
               <Link
                 href="/auth/forgot-password"
@@ -129,8 +129,8 @@ function LoginForm() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-10 outline-none focus:border-indigo-500"
+                placeholder="4-digit PIN (e.g. 6041)"
+                className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-10 outline-none focus:border-indigo-500 font-mono"
                 required
               />
               <button

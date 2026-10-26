@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Profile, UserRole } from "@/types/database";
 import { MOCK_PROFILES } from "./store/mock-data";
-import { isCollegeEmailApproved, isValidStudentEmail } from "./constants";
+import { isCollegeEmailApproved, isValidStudentEmail, parseSjcemStudentEmail } from "./constants";
 import { createClient } from "./supabase/client";
 
 interface AuthContextType {
@@ -116,30 +116,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 1. Check live Supabase Auth first if configured
       const supabase = createClient();
       if (supabase) {
-        let { data, error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: password,
-        });
+        // Try password with prefix for 4-digit PIN or raw
+        const candidatePasswords = [password];
+        if (password.length === 4 && /^\d{4}$/.test(password)) {
+          candidatePasswords.unshift(`sjcem_${password}`);
+        }
 
-        // If unconfirmed, automatically auto-confirm with admin API and retry immediately
-        if (error && (error.message?.toLowerCase().includes("email not confirmed") || (error as any).code === "email_not_confirmed")) {
-          try {
-            const confirmRes = await fetch('/api/auth/auto-confirm', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: cleanEmail }),
-            });
-            if (confirmRes.ok) {
-              const retry = await supabase.auth.signInWithPassword({
-                email: cleanEmail,
-                password: password,
+        let data: any = null;
+        let error: any = null;
+
+        for (const candidate of candidatePasswords) {
+          const attempt = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: candidate,
+          });
+          data = attempt.data;
+          error = attempt.error;
+
+          // If unconfirmed, automatically auto-confirm with admin API and retry immediately
+          if (error && (error.message?.toLowerCase().includes("email not confirmed") || (error as any).code === "email_not_confirmed")) {
+            try {
+              const confirmRes = await fetch('/api/auth/auto-confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: cleanEmail }),
               });
-              data = retry.data;
-              error = retry.error;
+              if (confirmRes.ok) {
+                const retry = await supabase.auth.signInWithPassword({
+                  email: cleanEmail,
+                  password: candidate,
+                });
+                data = retry.data;
+                error = retry.error;
+              }
+            } catch (confirmErr) {
+              console.error("Auto-confirm error during login:", confirmErr);
             }
-          } catch (confirmErr) {
-            console.error("Auto-confirm error during login:", confirmErr);
           }
+
+          if (!error && data?.user) break;
         }
 
         if (!error && data?.user) {
@@ -202,20 +217,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 3. Demo/Mock accounts check
-      const foundMock = MOCK_PROFILES.find(p => p.college_email.toLowerCase() === cleanEmail);
-      if (foundMock && password.length >= 6) {
-        setUser(foundMock);
-        setIsEmailVerified(true);
-        if (typeof document !== 'undefined') {
-          document.cookie = `cm_session=${encodeURIComponent(cleanEmail)}; path=/; max-age=604800; SameSite=Lax`;
-        }
-        localStorage.setItem("cm_current_user", JSON.stringify(foundMock));
-        localStorage.setItem("cm_email_verified", "true");
-        setIsLoading(false);
-        return { success: true };
-      }
-
       setIsLoading(false);
       return { success: false, error: "Invalid email ID or password." };
     } catch {
@@ -233,18 +234,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }): Promise<{ success: boolean; error?: string; verificationPending?: boolean }> => {
     setIsLoading(true);
     const cleanEmail = data.email.toLowerCase().trim();
+    const cleanPassword = data.password.trim();
 
-    if (!isValidStudentEmail(cleanEmail)) {
+    const sjcem = parseSjcemStudentEmail(cleanEmail);
+    if (!sjcem.isValid || !sjcem.expectedPin) {
       setIsLoading(false);
       return { 
         success: false, 
-        error: "Please enter a valid student Gmail or college-issued email (.edu or .ac.in)." 
+        error: "Registration is restricted to college emails in the format 125[name][4-digit]@sjcem.edu.in (e.g. 125suraj6041@sjcem.edu.in)." 
       };
     }
 
-    if (data.password.length < 8) {
+    if (cleanPassword !== sjcem.expectedPin) {
       setIsLoading(false);
-      return { success: false, error: "Password must be at least 8 characters long." };
+      return { 
+        success: false, 
+        error: `Registration failed: Password must be the exact 4-digit number from your college email (${sjcem.expectedPin}).` 
+      };
     }
 
     try {
@@ -307,7 +313,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (supabase) {
         await supabase.auth.signInWithPassword({
           email: cleanEmail,
-          password: data.password,
+          password: `sjcem_${cleanPassword}`,
         });
       }
 

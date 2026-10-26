@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { isValidStudentEmail } from "@/lib/constants";
+import { parseSjcemStudentEmail } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,17 +15,27 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = password.toString().trim();
 
-    if (!isValidStudentEmail(cleanEmail)) {
+    // 1. Strict SJCEM 125[name][4-digit]@sjcem.edu.in validation
+    const sjcem = parseSjcemStudentEmail(cleanEmail);
+    if (!sjcem.isValid || !sjcem.expectedPin) {
       return NextResponse.json(
-        { success: false, error: "Please enter a valid student Gmail or college-issued email (.edu or .ac.in)." },
+        { 
+          success: false, 
+          error: "Registration is restricted to college emails in the format 125[name][4-digit]@sjcem.edu.in (e.g. 125suraj6041@sjcem.edu.in)." 
+        },
         { status: 400 }
       );
     }
 
-    if (password.length < 8) {
+    // 2. Strict 4-digit PIN matching validation
+    if (cleanPassword !== sjcem.expectedPin) {
       return NextResponse.json(
-        { success: false, error: "Password must be at least 8 characters long." },
+        { 
+          success: false, 
+          error: `Registration failed: Password must be the exact 4-digit number from your college email (${sjcem.expectedPin}).` 
+        },
         { status: 400 }
       );
     }
@@ -38,12 +48,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Internal password format to satisfy auth provider minimum length rules
+    const authPassword = `sjcem_${cleanPassword}`;
+
     // 1. Create or ensure user exists in Supabase Auth with email_confirm: true
     let userId: string;
 
     const { data: createData, error: createError } = await admin.auth.admin.createUser({
       email: cleanEmail,
-      password: password,
+      password: authPassword,
       email_confirm: true,
       user_metadata: {
         display_name: displayName.trim(),
@@ -60,7 +73,7 @@ export async function POST(req: NextRequest) {
         if (existing) {
           userId = existing.id;
           await admin.auth.admin.updateUserById(userId, {
-            password: password,
+            password: authPassword,
             email_confirm: true,
             user_metadata: {
               display_name: displayName.trim(),

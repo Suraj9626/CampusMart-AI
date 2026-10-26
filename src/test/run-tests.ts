@@ -4,7 +4,7 @@
  * messaging privacy, fixed-price purchases, and AI route security.
  */
 
-import { isCollegeEmailApproved, isValidStudentEmail, CONTACT_LEAK_REGEX } from "../lib/constants";
+import { isCollegeEmailApproved, isValidStudentEmail, parseSjcemStudentEmail, CONTACT_LEAK_REGEX } from "../lib/constants";
 import { marketplaceStore } from "../lib/store/marketplace-store";
 import { MOCK_PROFILES, MOCK_LISTINGS } from "../lib/store/mock-data";
 
@@ -57,6 +57,31 @@ async function runTestSuite() {
     "Malformed email string is rejected"
   );
 
+  // SJCEM Specific Email Rule & PIN Extraction
+  const sjcemValid = parseSjcemStudentEmail("125suraj6041@sjcem.edu.in");
+  assert(
+    sjcemValid.isValid && sjcemValid.expectedPin === "6041",
+    "SJCEM student email 125suraj6041@sjcem.edu.in is accepted and extracts 4-digit PIN 6041"
+  );
+
+  const sjcemInvalidFormat = parseSjcemStudentEmail("suraj6041@sjcem.edu.in");
+  assert(
+    !sjcemInvalidFormat.isValid,
+    "SJCEM email without 125 prefix is rejected"
+  );
+
+  const sjcemInvalidPin = parseSjcemStudentEmail("125suraj@sjcem.edu.in");
+  assert(
+    !sjcemInvalidPin.isValid,
+    "SJCEM email without 4-digit number at end is rejected"
+  );
+
+  const sjcemInvalidDomain = parseSjcemStudentEmail("125suraj6041@gmail.com");
+  assert(
+    !sjcemInvalidDomain.isValid,
+    "Non-sjcem.edu.in domain is rejected for SJCEM student rule"
+  );
+
   // 2. CONTACT LEAK SCANNER (STUDENT SAFETY)
   console.log("\n--- 2. Student Privacy & Contact Leak Scanner ---");
   CONTACT_LEAK_REGEX.lastIndex = 0;
@@ -77,6 +102,7 @@ async function runTestSuite() {
 
   // 3. MARKETPLACE LISTING & FILTERING
   console.log("\n--- 3. Marketplace Listings & Category Filtering ---");
+  marketplaceStore.seedMockDataForTesting();
   const allListings = await marketplaceStore.getListings();
   assert(allListings.length >= 8, `Store loaded ${allListings.length} listings`);
 

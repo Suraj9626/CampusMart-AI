@@ -42,6 +42,22 @@ class MarketplaceStore {
   private initStore() {
     if (typeof window !== 'undefined') {
       try {
+        // Enforce clean slate reset
+        if (!localStorage.getItem("cm_clean_slate_2026")) {
+          localStorage.removeItem("cm_listings");
+          localStorage.removeItem("cm_bids");
+          localStorage.removeItem("cm_conversations");
+          localStorage.removeItem("cm_messages");
+          localStorage.removeItem("cm_favorites");
+          localStorage.removeItem("cm_notifications");
+          localStorage.removeItem("cm_reports");
+          localStorage.removeItem("cm_purchases");
+          localStorage.removeItem("cm_current_user");
+          localStorage.removeItem("cm_registered_credentials");
+          document.cookie = "cm_session=; path=/; max-age=0";
+          localStorage.setItem("cm_clean_slate_2026", "true");
+        }
+
         const storedListings = localStorage.getItem("cm_listings");
         const storedBids = localStorage.getItem("cm_bids");
         const storedConvs = localStorage.getItem("cm_conversations");
@@ -51,13 +67,13 @@ class MarketplaceStore {
         const storedReports = localStorage.getItem("cm_reports");
         const storedPurchases = localStorage.getItem("cm_purchases");
 
-        this.listings = storedListings ? JSON.parse(storedListings) : [...MOCK_LISTINGS];
-        this.bids = storedBids ? JSON.parse(storedBids) : { ...MOCK_BIDS };
-        this.conversations = storedConvs ? JSON.parse(storedConvs) : [...MOCK_CONVERSATIONS];
-        this.messages = storedMsgs ? JSON.parse(storedMsgs) : { ...MOCK_MESSAGES };
-        this.favorites = storedFavs ? JSON.parse(storedFavs) : { "u-alex-chen": ["lst-ti-84-ce"] };
-        this.notifications = storedNotifs ? JSON.parse(storedNotifs) : [...MOCK_NOTIFICATIONS];
-        this.reports = storedReports ? JSON.parse(storedReports) : [...MOCK_REPORTS];
+        this.listings = storedListings ? JSON.parse(storedListings) : [];
+        this.bids = storedBids ? JSON.parse(storedBids) : {};
+        this.conversations = storedConvs ? JSON.parse(storedConvs) : [];
+        this.messages = storedMsgs ? JSON.parse(storedMsgs) : {};
+        this.favorites = storedFavs ? JSON.parse(storedFavs) : {};
+        this.notifications = storedNotifs ? JSON.parse(storedNotifs) : [];
+        this.reports = storedReports ? JSON.parse(storedReports) : [];
         this.purchaseRequests = storedPurchases ? JSON.parse(storedPurchases) : [];
         this.initialized = true;
         return;
@@ -67,6 +83,18 @@ class MarketplaceStore {
     }
 
     // Server-side fallback
+    this.listings = [];
+    this.bids = {};
+    this.conversations = [];
+    this.messages = {};
+    this.favorites = {};
+    this.notifications = [];
+    this.reports = [];
+    this.purchaseRequests = [];
+    this.initialized = true;
+  }
+
+  public seedMockDataForTesting() {
     this.listings = [...MOCK_LISTINGS];
     this.bids = { ...MOCK_BIDS };
     this.conversations = [...MOCK_CONVERSATIONS];
@@ -75,7 +103,6 @@ class MarketplaceStore {
     this.notifications = [...MOCK_NOTIFICATIONS];
     this.reports = [...MOCK_REPORTS];
     this.purchaseRequests = [];
-    this.initialized = true;
   }
 
   private save() {
@@ -121,10 +148,10 @@ class MarketplaceStore {
         const res = await fetch(`/api/listings?${queryParams.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.success && Array.isArray(data.listings) && data.listings.length > 0) {
+          if (data.success && Array.isArray(data.listings)) {
             // Keep any locally created listings that might not yet be indexed
             const dbIds = new Set(data.listings.map((l: any) => l.id));
-            const localOnly = this.listings.filter(l => !dbIds.has(l.id) && l.id.startsWith("lst-"));
+            const localOnly = this.listings.filter(l => !dbIds.has(l.id) && l.id.startsWith("lst-") && !MOCK_LISTINGS.some(m => m.id === l.id));
             this.listings = [...localOnly, ...data.listings];
             this.save();
             return this.applyLocalFilters(this.listings, params);

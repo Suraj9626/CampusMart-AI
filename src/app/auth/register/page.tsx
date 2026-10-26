@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Lock, Mail, User, GraduationCap, Building, AlertCircle, ArrowRight } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { COLLEGE_DEPARTMENTS, ACADEMIC_YEARS, APP_NAME } from "@/lib/constants";
+import { COLLEGE_DEPARTMENTS, ACADEMIC_YEARS, APP_NAME, parseSjcemStudentEmail } from "@/lib/constants";
 import { Profile } from "@/types/database";
 
 export default function RegisterPage() {
@@ -27,13 +27,22 @@ export default function RegisterPage() {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    const sjcem = parseSjcemStudentEmail(cleanEmail);
+    if (!sjcem.isValid || !sjcem.expectedPin) {
+      setErrorMessage("Registration is restricted to college emails in the format 125[name][4-digit]@sjcem.edu.in (e.g. 125suraj6041@sjcem.edu.in).");
       return;
     }
 
-    if (password.length < 8) {
-      setErrorMessage("Password must be at least 8 characters.");
+    if (cleanPassword !== sjcem.expectedPin) {
+      setErrorMessage(`Password must be the exact 4-digit number from your college email (${sjcem.expectedPin}).`);
+      return;
+    }
+
+    if (cleanPassword !== confirmPassword.trim()) {
+      setErrorMessage("Passwords do not match.");
       return;
     }
 
@@ -43,11 +52,10 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-    const cleanEmail = email.trim();
     const res = await register({
       displayName: displayName.trim(),
       email: cleanEmail,
-      password,
+      password: cleanPassword,
       department,
       academicYear,
     });
@@ -74,7 +82,7 @@ export default function RegisterPage() {
             Create Student Account
           </h1>
           <p className="text-xs text-zinc-500">
-            Join your verified campus marketplace with college email or Gmail
+            Exclusive registration for 125...[4-digit]@sjcem.edu.in college students
           </p>
         </div>
 
@@ -105,7 +113,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-              College Email or Gmail *
+              College Email (@sjcem.edu.in) *
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
@@ -113,12 +121,12 @@ export default function RegisterPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourname@gmail.com or student@college.edu"
+                placeholder="125suraj6041@sjcem.edu.in"
                 className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:border-indigo-500"
                 required
               />
             </div>
-            <p className="text-[10px] text-zinc-400 mt-1">Accepts college email (.edu, .ac.in) or student Gmail address</p>
+            <p className="text-[10px] text-zinc-400 mt-1">Must be formatted like 125[name][4-digit]@sjcem.edu.in</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -156,16 +164,17 @@ export default function RegisterPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                Password (min 8 chars) *
+                4-Digit PIN Password *
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
                 <input
                   type="password"
+                  maxLength={4}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:border-indigo-500"
+                  placeholder="e.g. 6041"
+                  className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:border-indigo-500 font-mono"
                   required
                 />
               </div>
@@ -173,21 +182,25 @@ export default function RegisterPage() {
 
             <div>
               <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                Confirm Password *
+                Confirm 4-Digit PIN *
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
                 <input
                   type="password"
+                  maxLength={4}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:border-indigo-500"
+                  placeholder="e.g. 6041"
+                  className="w-full text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:border-indigo-500 font-mono"
                   required
                 />
               </div>
             </div>
           </div>
+          <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+            Note: Your password must be the exact 4-digit number at the end of your college email (e.g. 6041).
+          </p>
 
           <label className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer pt-1">
             <input

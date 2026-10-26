@@ -35,9 +35,29 @@ export function isCollegeEmailApproved(email: string): boolean {
   return approvedList.some(approved => domain === approved || domain.endsWith('.' + approved) || (approved === 'edu' && domain.endsWith('.edu')));
 }
 
+export function parseSjcemStudentEmail(email: string): { isValid: boolean; expectedPin?: string } {
+  if (!email || !email.includes('@')) return { isValid: false };
+  const clean = email.toLowerCase().trim();
+  const parts = clean.split('@');
+  if (parts.length !== 2 || parts[1] !== 'sjcem.edu.in') {
+    return { isValid: false };
+  }
+  const username = parts[0];
+  const match = username.match(/^125.*(\d{4})$/);
+  if (!match) {
+    return { isValid: false };
+  }
+  return { isValid: true, expectedPin: match[1] };
+}
+
 export function isValidStudentEmail(email: string): boolean {
   if (!email || !email.includes('@')) return false;
   const clean = email.toLowerCase().trim();
+  
+  // Specific SJCEM 125 student email check
+  const sjcemCheck = parseSjcemStudentEmail(clean);
+  if (sjcemCheck.isValid) return true;
+
   const domain = clean.split('@')[1];
   if (!domain) return false;
   
