@@ -200,7 +200,7 @@ export const MOCK_PROFILES: Profile[] = [
 
 export const MOCK_CATEGORIES: Category[] = [
   {
-    id: "cat-electronics",
+    id: "c1111111-1111-1111-1111-111111111101",
     name: "Electronics & Gadgets",
     slug: "electronics",
     icon: "Laptop",
@@ -210,7 +210,7 @@ export const MOCK_CATEGORIES: Category[] = [
     created_at: "2026-09-01T00:00:00Z",
   },
   {
-    id: "cat-books",
+    id: "c1111111-1111-1111-1111-111111111102",
     name: "Books & Study Material",
     slug: "books",
     icon: "BookOpen",
@@ -220,7 +220,7 @@ export const MOCK_CATEGORIES: Category[] = [
     created_at: "2026-09-01T00:00:00Z",
   },
   {
-    id: "cat-engineering",
+    id: "c1111111-1111-1111-1111-111111111103",
     name: "Engineering & Lab Tools",
     slug: "engineering-tools",
     icon: "Wrench",
@@ -230,7 +230,7 @@ export const MOCK_CATEGORIES: Category[] = [
     created_at: "2026-09-01T00:00:00Z",
   },
   {
-    id: "cat-dorm",
+    id: "c1111111-1111-1111-1111-111111111104",
     name: "Hostel & Study Essentials",
     slug: "dorm-essentials",
     icon: "Home",
@@ -240,7 +240,7 @@ export const MOCK_CATEGORIES: Category[] = [
     created_at: "2026-09-01T00:00:00Z",
   },
   {
-    id: "cat-bicycles",
+    id: "c1111111-1111-1111-1111-111111111105",
     name: "Campus Bags & Mobility",
     slug: "bicycles",
     icon: "Bike",
@@ -250,7 +250,7 @@ export const MOCK_CATEGORIES: Category[] = [
     created_at: "2026-09-01T00:00:00Z",
   },
   {
-    id: "cat-furniture",
+    id: "c1111111-1111-1111-1111-111111111106",
     name: "Study Stands & Desk Gear",
     slug: "furniture",
     icon: "Armchair",
@@ -260,7 +260,7 @@ export const MOCK_CATEGORIES: Category[] = [
     created_at: "2026-09-01T00:00:00Z",
   },
   {
-    id: "cat-sports",
+    id: "c1111111-1111-1111-1111-111111111107",
     name: "Sports & Fitness Gear",
     slug: "sports",
     icon: "Trophy",
@@ -270,7 +270,7 @@ export const MOCK_CATEGORIES: Category[] = [
     created_at: "2026-09-01T00:00:00Z",
   },
   {
-    id: "cat-other",
+    id: "c1111111-1111-1111-1111-111111111109",
     name: "Other Essentials",
     slug: "other",
     icon: "Package",
@@ -281,10 +281,9 @@ export const MOCK_CATEGORIES: Category[] = [
   }
 ];
 
-// Stable base timestamp for mock data to ensure deterministic prerendering
-const BASE_TIME = 1792750000000;
-const inHours = (h: number) => new Date(BASE_TIME + h * 60 * 60 * 1000).toISOString();
-const pastHours = (h: number) => new Date(BASE_TIME - h * 60 * 60 * 1000).toISOString();
+// Dynamic timestamp calculations ensuring live mock auctions remain valid and active
+const inHours = (h: number) => new Date(Date.now() + h * 60 * 60 * 1000).toISOString();
+const pastHours = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
 
 export const MOCK_LISTINGS: Listing[] = [
   {

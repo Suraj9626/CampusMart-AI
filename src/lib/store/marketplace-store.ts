@@ -109,8 +109,37 @@ class MarketplaceStore {
   }): Promise<Listing[]> {
     if (typeof window !== 'undefined') {
       this.processExpiredAuctions();
+      try {
+        const queryParams = new URLSearchParams();
+        if (params?.category) queryParams.set("category", params.category);
+        if (params?.query) queryParams.set("query", params.query);
+        if (params?.condition) queryParams.set("condition", params.condition);
+        if (params?.sale_mode) queryParams.set("sale_mode", params.sale_mode);
+        if (params?.seller_id) queryParams.set("seller_id", params.seller_id);
+        if (params?.status) queryParams.set("status", params.status);
+
+        const res = await fetch(`/api/listings?${queryParams.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.listings) && data.listings.length > 0) {
+            // Keep any locally created listings that might not yet be indexed
+            const dbIds = new Set(data.listings.map((l: any) => l.id));
+            const localOnly = this.listings.filter(l => !dbIds.has(l.id) && l.id.startsWith("lst-"));
+            this.listings = [...localOnly, ...data.listings];
+            this.save();
+            return this.applyLocalFilters(this.listings, params);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch listings from cloud API, using local cache:", err);
+      }
     }
-    let result = [...this.listings];
+
+    return this.applyLocalFilters(this.listings, params);
+  }
+
+  private applyLocalFilters(list: Listing[], params?: any): Listing[] {
+    let result = [...list];
 
     if (params?.status) {
       result = result.filter(item => item.status === params.status);
@@ -190,6 +219,24 @@ class MarketplaceStore {
   async getListingById(id: string): Promise<Listing | null> {
     if (typeof window !== 'undefined') {
       this.processExpiredAuctions();
+      try {
+        const res = await fetch(`/api/listings/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.listing) {
+            const idx = this.listings.findIndex(l => l.id === id);
+            if (idx >= 0) {
+              this.listings[idx] = data.listing;
+            } else {
+              this.listings.unshift(data.listing);
+            }
+            this.save();
+            return data.listing;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch listing from cloud API:", err);
+      }
     }
     const item = this.listings.find(l => l.id === id);
     if (!item) return null;
@@ -203,7 +250,7 @@ class MarketplaceStore {
     const category = MOCK_CATEGORIES.find(c => c.id === data.category_id || c.slug === data.category_id) || MOCK_CATEGORIES[0];
     const newId = `lst-${Date.now().toString(36)}`;
     
-    const newListing: Listing = {
+    let createdListing: Listing = {
       ...data,
       id: newId,
       seller_id: seller.id,
@@ -218,9 +265,33 @@ class MarketplaceStore {
       updated_at: new Date().toISOString(),
     };
 
-    this.listings.unshift(newListing);
+    // Save directly to the cloud Supabase database so all devices and friends can view it immediately
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch('/api/listings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...data,
+            seller,
+            seller_id: seller.id,
+          }),
+        });
+
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData.success && resData.listing) {
+            createdListing = resData.listing;
+          }
+        }
+      } catch (err) {
+        console.error("Cloud listing creation error, saved locally:", err);
+      }
+    }
+
+    this.listings.unshift(createdListing);
     this.save();
-    return newListing;
+    return createdListing;
   }
 
   async updateListing(id: string, updates: Partial<Listing>, editorId: string): Promise<{ success: boolean; message: string; listing?: Listing }> {
@@ -248,6 +319,16 @@ class MarketplaceStore {
       updated_at: new Date().toISOString()
     };
 
+    if (typeof window !== 'undefined') {
+      try {
+        fetch(`/api/listings/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        }).catch(e => console.warn("Cloud listing update warning:", e));
+      } catch {}
+    }
+
     this.listings[index] = updated;
     this.save();
     return { success: true, message: "Listing updated successfully.", listing: updated };
@@ -264,6 +345,14 @@ class MarketplaceStore {
 
     if (listing.sale_mode === 'auction' && listing.bid_count > 0) {
       return { success: false, message: "Cannot delete an auction with active bids to preserve auction integrity." };
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        fetch(`/api/listings/${id}`, {
+          method: 'DELETE',
+        }).catch(e => console.warn("Cloud listing delete warning:", e));
+      } catch {}
     }
 
     this.listings.splice(index, 1);
@@ -340,6 +429,21 @@ class MarketplaceStore {
     listing.winning_bidder = bidder;
     listing.auction_end = newEnd;
     listing.updated_at = new Date().toISOString();
+
+    // Sync to Supabase cloud database
+    if (typeof window !== 'undefined') {
+      try {
+        fetch('/api/bids', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            listing_id: listingId,
+            amount,
+            bidder_id: bidder.id,
+          }),
+        }).catch(e => console.warn("Supabase bid sync warning:", e));
+      } catch {}
+    }
 
     // Notify seller
     this.notifications.unshift({

@@ -30,6 +30,8 @@ export async function createServerSupabaseClient() {
   });
 }
 
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+
 // Privileged Service Role Client for server-only operations
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -39,12 +41,11 @@ export function createAdminClient() {
     return null;
   }
 
-  return createServerClient(supabaseUrl, serviceRoleKey, {
-    cookies: {
-      getAll() {
-        return [];
-      },
-      setAll() {},
-    },
+  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
   });
 }
+

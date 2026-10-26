@@ -79,11 +79,34 @@ export default function CreateListingPage() {
       return;
     }
 
-    // Convert to object URL for immediate high-res preview
-    const localUrl = URL.createObjectURL(file);
-    if (imageUrls.length < 5) {
-      setImageUrls(prev => [...prev, localUrl]);
-    }
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Upload directly to Supabase storage so all users across devices can view the images
+    fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.url) {
+          if (imageUrls.length < 5) {
+            setImageUrls(prev => [...prev, data.url]);
+          }
+        } else {
+          const localUrl = URL.createObjectURL(file);
+          if (imageUrls.length < 5) {
+            setImageUrls(prev => [...prev, localUrl]);
+          }
+        }
+      })
+      .catch(() => {
+        const localUrl = URL.createObjectURL(file);
+        if (imageUrls.length < 5) {
+          setImageUrls(prev => [...prev, localUrl]);
+        }
+      });
+
     e.target.value = "";
   };
 

@@ -116,12 +116,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 1. Check live Supabase Auth first if configured
       const supabase = createClient();
       if (supabase) {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        let { data, error } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
           password: password,
         });
 
-        if (!error && data.user) {
+        // If unconfirmed, automatically auto-confirm with admin API and retry immediately
+        if (error && (error.message?.toLowerCase().includes("email not confirmed") || (error as any).code === "email_not_confirmed")) {
+          try {
+            const confirmRes = await fetch('/api/auth/auto-confirm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: cleanEmail }),
+            });
+            if (confirmRes.ok) {
+              const retry = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password: password,
+              });
+              data = retry.data;
+              error = retry.error;
+            }
+          } catch (confirmErr) {
+            console.error("Auto-confirm error during login:", confirmErr);
+          }
+        }
+
+        if (!error && data?.user) {
           // Fetch or self-heal profile
           let { data: profile } = await supabase
             .from("profiles")
@@ -196,7 +217,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setIsLoading(false);
-      // Prompt requirement: exact user-facing message
       return { success: false, error: "Invalid email ID or password." };
     } catch {
       setIsLoading(false);
@@ -227,27 +247,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "Password must be at least 8 characters long." };
     }
 
-    const supabase = createClient();
-    if (supabase) {
-      const { data: authData, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: data.password,
-        options: {
-          data: {
-            display_name: data.displayName,
-            department: data.department,
-            academic_year: data.academicYear,
-          }
-        }
+    try {
+      // 1. Register through our server API for guaranteed auto-confirmed account creation in Supabase
+      const regRes = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: data.password,
+          displayName: data.displayName,
+          department: data.department,
+          academicYear: data.academicYear,
+        }),
       });
 
-      if (error) {
+      const regData = await regRes.json();
+
+      if (!regRes.ok || !regData.success) {
         setIsLoading(false);
-        return { success: false, error: error.message };
+        return { success: false, error: regData.error || "Registration failed. Please try again." };
       }
 
-      const newProfile: Profile = {
-        id: authData.user?.id || `u-${Date.now().toString(36)}`,
+      const newProfile: Profile = regData.user || {
+        id: `u-${Date.now().toString(36)}`,
         display_name: data.displayName,
         college_email: cleanEmail,
         avatar_url: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80`,
@@ -259,18 +281,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updated_at: new Date().toISOString(),
       };
 
-      // Save to Supabase profiles table
-      try {
-        await supabase.from("profiles").upsert(newProfile);
-      } catch (err) {
-        console.warn("Supabase profile upsert:", err);
-      }
-
-      // Store in registered credentials cache for instant, guaranteed student sign-in
+      // Also cache locally for instant fast recovery
       if (typeof window !== 'undefined') {
         try {
           const registeredCreds = localStorage.getItem("cm_registered_credentials");
-          const accounts = registeredCreds ? JSON.parse(registeredCreds) : [];
+          let accounts: any[] = [];
+          if (registeredCreds) {
+            try {
+              accounts = JSON.parse(registeredCreds);
+            } catch {}
+          }
           accounts.push({
             email: cleanEmail,
             password: data.password,
@@ -282,45 +302,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      setPendingVerificationEmail(cleanEmail);
-      setIsEmailVerified(false);
-      setIsLoading(false);
-      return { success: true, verificationPending: !authData.session };
-    }
-
-    // Demo/Local Registration
-    const newProfile: Profile = {
-      id: `u-${Date.now().toString(36)}`,
-      display_name: data.displayName,
-      college_email: cleanEmail,
-      avatar_url: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80`,
-      department: data.department,
-      academic_year: data.academicYear,
-      role: "student",
-      status: "active",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    MOCK_PROFILES.push(newProfile);
-
-    if (typeof window !== 'undefined') {
-      try {
-        const registeredCreds = localStorage.getItem("cm_registered_credentials");
-        const accounts = registeredCreds ? JSON.parse(registeredCreds) : [];
-        accounts.push({
+      // Try automatic sign in immediately so user is ready
+      const supabase = createClient();
+      if (supabase) {
+        await supabase.auth.signInWithPassword({
           email: cleanEmail,
           password: data.password,
-          profile: newProfile,
         });
-        localStorage.setItem("cm_registered_credentials", JSON.stringify(accounts));
-      } catch (e) {
-        console.warn("Failed caching credentials:", e);
       }
-    }
 
-    setIsLoading(false);
-    return { success: true, verificationPending: false };
+      setPendingVerificationEmail(null);
+      setIsEmailVerified(true);
+      setIsLoading(false);
+      return { success: true, verificationPending: false };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: err.message || "Failed to complete registration." };
+    }
   };
 
   const logout = async () => {
