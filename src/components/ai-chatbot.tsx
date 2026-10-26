@@ -25,10 +25,10 @@ interface ChatMessage {
 }
 
 const SUGGESTED_PROMPTS = [
-  "How does anti-sniping protection work in auctions?",
-  "Price estimate in ₹ for pre-owned electronics",
-  "Where are safe meetup zones on campus?",
-  "Tips for pricing textbooks and course packs"
+  "What items are currently available for sale?",
+  "How does auction anti-sniping work?",
+  "Are there any laptops, calculators, or textbooks listed?",
+  "Can you help me with an engineering or coding question?"
 ];
 
 export function AiChatbot() {
@@ -48,7 +48,7 @@ export function AiChatbot() {
         {
           id: "welcome-1",
           role: "assistant",
-          content: `Hi ${user?.display_name ? user.display_name.split(' ')[0] : 'there'}! 👋 I'm **CampusMart AI Assistant**.\n\nI can help you navigate auctions, campus buying/selling, safety rules, or answer general academic & engineering questions. How can I help today?`,
+          content: `Hi ${user?.display_name ? user.display_name.split(' ')[0] : 'there'}! 👋 I'm **CampusMart AI Assistant**, connected live to our campus marketplace database.\n\nI can answer questions about items currently available on the website, platform rules, or help you with any general or academic questions. How can I help today?`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -168,7 +168,7 @@ export function AiChatbot() {
                     <h3 className="font-semibold text-sm leading-tight">CampusMart AI</h3>
                     <span className="bg-emerald-400/20 text-emerald-200 border border-emerald-400/30 text-[10px] px-1.5 py-0.2 rounded font-medium">Online</span>
                   </div>
-                  <p className="text-xs text-indigo-100/80">Student Assistant • Gemini 2.5 Flash</p>
+                  <p className="text-xs text-indigo-100/80">Live DB Connected • Gemini 2.5 Flash</p>
                 </div>
               </div>
 
